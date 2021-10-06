@@ -142,8 +142,9 @@
   <bpmn:process id="Process_TwitterReview" name="Twitter-Review-Prozess" isExecutable="true">
     <bpmn:laneSet id="LaneSet_0ch647t">
       <bpmn:lane id="MitarbeiterLane" name="Mitarbeiter">
-        <bpmn:flowNodeRef>TweetUberarbeitenTask1</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>TweetEingereichtStartEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>TweetUberarbeitenTask1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_1i724e9</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="AutomatischLane" name="Automatisch">
         <bpmn:flowNodeRef>ManuellePrufungErforderlichGateway</bpmn:flowNodeRef>
@@ -174,9 +175,9 @@
     </bpmn:exclusiveGateway>
     <bpmn:exclusiveGateway id="PrufergebnisGateway1" name="Prüfergebnis?">
       <bpmn:incoming>Flow_0mddaue</bpmn:incoming>
-      <bpmn:outgoing>ZuUberarbeitenSequenceFlow1</bpmn:outgoing>
       <bpmn:outgoing>GenehmigtSequenceFlow</bpmn:outgoing>
       <bpmn:outgoing>AbgelehntSequenceFlow</bpmn:outgoing>
+      <bpmn:outgoing>ZuUberarbeitenSequenceFlow1</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:endEvent id="TweetGepostedEndEvent" name="Tweet geposted">
       <bpmn:incoming>Flow_04dij6j</bpmn:incoming>
@@ -194,9 +195,6 @@
     <bpmn:sequenceFlow id="Flow_04dij6j" sourceRef="BestatigungMitteilenTask" targetRef="TweetGepostedEndEvent" />
     <bpmn:sequenceFlow id="Flow_009rtmd" sourceRef="TweetSendenTask" targetRef="BestatigungMitteilenTask" />
     <bpmn:sequenceFlow id="Flow_0bpyw1q" sourceRef="AblehnungMitteilenTask" targetRef="TweetAbgelehntEndEvent1" />
-    <bpmn:sequenceFlow id="ZuUberarbeitenSequenceFlow1" name="Zu überarbeiten" sourceRef="PrufergebnisGateway1" targetRef="TweetUberarbeitenTask1">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${checkResult=='revisable'}</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="GenehmigtSequenceFlow" name="Genehmigt" sourceRef="PrufergebnisGateway1" targetRef="TweetSendenTask">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${checkResult=='accepted'}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
@@ -218,19 +216,6 @@
       <bpmn:incoming>Flow_09kfwsd</bpmn:incoming>
       <bpmn:outgoing>Flow_0pe345c</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:task id="TweetAnfragePrufenTask1" name="Tweet-Anfrage prüfen">
-      <bpmn:extensionElements>
-        <camunda:inputOutput>
-          <camunda:outputParameter name="checkResult">accepted</camunda:outputParameter>
-        </camunda:inputOutput>
-      </bpmn:extensionElements>
-      <bpmn:incoming>JaSequenceFlow</bpmn:incoming>
-      <bpmn:outgoing>Flow_14fz7kr</bpmn:outgoing>
-    </bpmn:task>
-    <bpmn:task id="TweetUberarbeitenTask1" name="Tweet überarbeiten">
-      <bpmn:incoming>ZuUberarbeitenSequenceFlow1</bpmn:incoming>
-      <bpmn:outgoing>Flow_096xcdp</bpmn:outgoing>
-    </bpmn:task>
     <bpmn:task id="TweetSendenTask" name="Tweet senden">
       <bpmn:incoming>GenehmigtSequenceFlow</bpmn:incoming>
       <bpmn:outgoing>Flow_009rtmd</bpmn:outgoing>
@@ -243,7 +228,18 @@
       <bpmn:incoming>AbgelehntSequenceFlow</bpmn:incoming>
       <bpmn:outgoing>Flow_0bpyw1q</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:startEvent id="TweetEingereichtStartEvent" name="Tweet eingereicht" camunda:asyncAfter="true">
+    <bpmn:startEvent id="TweetEingereichtStartEvent" name="Tweet eingereicht" camunda:asyncAfter="true" camunda:initiator="anfrageStellenderBenutzer">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="tweetContent" label="Gewünschter Tweet" type="string" />
+        </camunda:formData>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="JavaScript">var tweetContentShort = tweetContent.substring(0,10);
+
+execution.setProcessBusinessKey("T-" +
+anfrageStellenderBenutzer + "-" + tweetContentShort );</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
       <bpmn:outgoing>Flow_09kfwsd</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:scriptTask id="TweetTextAutomatischPrufenTask" name="Tweet-Text automatisch prüfen" camunda:asyncAfter="true" scriptFormat="JavaScript" camunda:resultVariable="checkResult">
@@ -254,8 +250,67 @@
 result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired" : "rejected");
 </bpmn:script>
     </bpmn:scriptTask>
+    <bpmn:userTask id="TweetAnfragePrufenTask1" name="Tweet-Anfrage prüfen" camunda:asyncAfter="true" camunda:candidateGroups="komm">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="tweetContent" label="Eingereichter Tweet" type="string">
+            <camunda:validation>
+              <camunda:constraint name="readonly" />
+            </camunda:validation>
+          </camunda:formField>
+          <camunda:formField id="checkResultLocal" label="Prüfergebnis" type="enum">
+            <camunda:value id="accepted" name="Angenommen" />
+            <camunda:value id="rejected" name="Abgelehnt" />
+            <camunda:value id="revisable" name="Zu überarbeiten" />
+          </camunda:formField>
+          <camunda:formField id="checkResultComment" label="Begründung" type="string" />
+        </camunda:formData>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="checkResultLocal">accepted</camunda:inputParameter>
+          <camunda:outputParameter name="checkResult">${checkResultLocal}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>JaSequenceFlow</bpmn:incoming>
+      <bpmn:outgoing>Flow_14fz7kr</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="TweetUberarbeitenTask1" name="Tweet überarbeiten" camunda:asyncAfter="true" camunda:assignee="${anfragestellenderBenutzer}">
+      <bpmn:extensionElements>
+        <camunda:formData>
+          <camunda:formField id="tweetContent" label="Eingereichter Tweet" type="string" />
+          <camunda:formField id="checkResultComment" label="Begründung" type="string">
+            <camunda:validation>
+              <camunda:constraint name="readonly" />
+            </camunda:validation>
+          </camunda:formField>
+        </camunda:formData>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="checkResult">manualCheckRequired</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>ZuUberarbeitenSequenceFlow1</bpmn:incoming>
+      <bpmn:outgoing>Flow_096xcdp</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="ZuUberarbeitenSequenceFlow1" name="Zu überarbeiten" sourceRef="PrufergebnisGateway1" targetRef="TweetUberarbeitenTask1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${checkResult=='revisable'}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:subProcess id="Activity_1i724e9" triggeredByEvent="true">
+      <bpmn:startEvent id="Event_1v1q942" name="Abbruch erwünscht">
+        <bpmn:outgoing>Flow_1lmgpox</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MessageEventDefinition_1uym7sd" messageRef="Message_0o3837t" />
+      </bpmn:startEvent>
+      <bpmn:task id="Activity_0q60jn4" name="Beteiligte über Abbruch informieren">
+        <bpmn:incoming>Flow_1lmgpox</bpmn:incoming>
+        <bpmn:outgoing>Flow_1eu7x7i</bpmn:outgoing>
+      </bpmn:task>
+      <bpmn:sequenceFlow id="Flow_1lmgpox" sourceRef="Event_1v1q942" targetRef="Activity_0q60jn4" />
+      <bpmn:endEvent id="Event_0bq8jtr" name="Prozess abgebrochen">
+        <bpmn:incoming>Flow_1eu7x7i</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Flow_1eu7x7i" sourceRef="Activity_0q60jn4" targetRef="Event_0bq8jtr" />
+    </bpmn:subProcess>
   </bpmn:process>
   <bpmn:error id="Error_0cztbkf" name="DuplicateError" errorCode="DuplicateTweet" />
+  <bpmn:message id="Message_0o3837t" name="MessageCancelTwitterReview" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1ahv1wb">
       <bpmndi:BPMNShape id="Participant_0k4qwik_di" bpmnElement="MitarbeiterParticipant" isHorizontal="true" bioc:stroke="rgb(30, 136, 229)" bioc:fill="rgb(187, 222, 251)">
@@ -318,7 +373,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       <bpmndi:BPMNShape id="Activity_0u3lbk3_di" bpmnElement="TweetErfassenTask">
         <dc:Bounds x="295" y="490" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0q1zd61_di" bpmnElement="AuftragZurUberarbeitungErhaltenEvent">
+      <bpmndi:BPMNShape id="Event_0q1zd61_di" bpmnElement="AuftragZurUberarbeitungErhaltenEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="532" y="350" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="515" y="396" width="70" height="40" />
@@ -333,31 +388,31 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       <bpmndi:BPMNShape id="Gateway_0mo5tek_di" bpmnElement="Gateway_0mo5tek" isMarkerVisible="true">
         <dc:Bounds x="439" y="505" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0lz0gx5_di" bpmnElement="IdeeZuTweetEingefallenStartEvent">
+      <bpmndi:BPMNShape id="Event_0lz0gx5_di" bpmnElement="IdeeZuTweetEingefallenStartEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="201" y="322" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="185" y="365" width="69" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_101f4ze_di" bpmnElement="AblehnungsentscheidErhaltenEvent">
+      <bpmndi:BPMNShape id="Event_101f4ze_di" bpmnElement="AblehnungsentscheidErhaltenEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="532" y="152" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="505" y="198" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0eu4n3v_di" bpmnElement="TweetVeroffentlichtEndEvent">
+      <bpmndi:BPMNShape id="Event_0eu4n3v_di" bpmnElement="TweetVeroffentlichtEndEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="762" y="246" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="750" y="289" width="63" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_04a76zr_di" bpmnElement="VeroffentlichungsMitteilungErhaltenEvent">
+      <bpmndi:BPMNShape id="Event_04a76zr_di" bpmnElement="VeroffentlichungsMitteilungErhaltenEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="647" y="246" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="620" y="196" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_1143l44_di" bpmnElement="TweetAbgelehntEndEvent">
+      <bpmndi:BPMNShape id="Event_1143l44_di" bpmnElement="TweetAbgelehntEndEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="762" y="152" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="740" y="195" width="81" height="14" />
@@ -392,7 +447,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
         <di:waypoint x="835" y="1502" />
         <di:waypoint x="958" y="1502" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0qgpr50_di" bpmnElement="ZuUberarbeitenSequenceFlow">
+      <bpmndi:BPMNEdge id="Flow_0qgpr50_di" bpmnElement="ZuUberarbeitenSequenceFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="983" y="1477" />
         <di:waypoint x="983" y="1355" />
         <di:waypoint x="1106" y="1355" />
@@ -400,7 +455,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="987" y="1334" width="78" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1xyk6w6_di" bpmnElement="AbgelehntOderGenehmigtSequenceFlow">
+      <bpmndi:BPMNEdge id="Flow_1xyk6w6_di" bpmnElement="AbgelehntOderGenehmigtSequenceFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1008" y="1502" />
         <di:waypoint x="1106" y="1502" />
         <bpmndi:BPMNLabel>
@@ -413,25 +468,25 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       <bpmndi:BPMNShape id="Activity_0duog8v_di" bpmnElement="TweetAnfragePrufenTask">
         <dc:Bounds x="785" y="1315" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_1gi0z23_di" bpmnElement="PrufergebnisGateway" isMarkerVisible="true">
+      <bpmndi:BPMNShape id="Gateway_1gi0z23_di" bpmnElement="PrufergebnisGateway" isMarkerVisible="true" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="958" y="1477" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="949" y="1534" width="69" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0gm3ljp_di" bpmnElement="TweetGepruftEndEvent">
+      <bpmndi:BPMNShape id="Event_0gm3ljp_di" bpmnElement="TweetGepruftEndEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="1106" y="1484" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1093" y="1527" width="67" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_1b084kj_di" bpmnElement="UberarbeiteterAntragEingetroffenEvent">
+      <bpmndi:BPMNShape id="Event_1b084kj_di" bpmnElement="UberarbeiteterAntragEingetroffenEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="1106" y="1337" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1089" y="1380" width="71" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0svs523_di" bpmnElement="ZuPrufenderTweetErhaltenStartEvent">
+      <bpmndi:BPMNShape id="Event_0svs523_di" bpmnElement="ZuPrufenderTweetErhaltenStartEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="591" y="1484" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="580" y="1527" width="64" height="40" />
@@ -460,14 +515,14 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
         <di:waypoint x="930" y="1134" />
         <di:waypoint x="930" y="923" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_10lzwdf_di" bpmnElement="NeinSequenceFlow">
+      <bpmndi:BPMNEdge id="Flow_10lzwdf_di" bpmnElement="NeinSequenceFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="758" y="898" />
         <di:waypoint x="905" y="898" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="820" y="880" width="23" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0dylw4s_di" bpmnElement="JaSequenceFlow">
+      <bpmndi:BPMNEdge id="Flow_0dylw4s_di" bpmnElement="JaSequenceFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="733" y="923" />
         <di:waypoint x="733" y="1134" />
         <di:waypoint x="783" y="1134" />
@@ -489,14 +544,14 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
         <di:waypoint x="955" y="898" />
         <di:waypoint x="1015" y="898" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_003w5uj_di" bpmnElement="AbgelehntSequenceFlow">
+      <bpmndi:BPMNEdge id="Flow_003w5uj_di" bpmnElement="AbgelehntSequenceFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1065" y="898" />
         <di:waypoint x="1291" y="898" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1068" y="880" width="50" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1er2qj2_di" bpmnElement="GenehmigtSequenceFlow">
+      <bpmndi:BPMNEdge id="Flow_1er2qj2_di" bpmnElement="GenehmigtSequenceFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1040" y="923" />
         <di:waypoint x="1040" y="1014" />
         <di:waypoint x="1144" y="1014" />
@@ -504,7 +559,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="1057" y="987" width="54" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0nz87h5_di" bpmnElement="ZuUberarbeitenSequenceFlow1">
+      <bpmndi:BPMNEdge id="Flow_0nz87h5_di" bpmnElement="ZuUberarbeitenSequenceFlow1" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1040" y="873" />
         <di:waypoint x="1040" y="753" />
         <di:waypoint x="1144" y="753" />
@@ -532,7 +587,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
         <di:waypoint x="423" y="898" />
         <di:waypoint x="480" y="898" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNShape id="Gateway_1wjj6dm_di" bpmnElement="ManuellePrufungErforderlichGateway" isMarkerVisible="true">
+      <bpmndi:BPMNShape id="Gateway_1wjj6dm_di" bpmnElement="ManuellePrufungErforderlichGateway" isMarkerVisible="true" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="708" y="873" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="689" y="836" width="87" height="27" />
@@ -541,13 +596,13 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       <bpmndi:BPMNShape id="Gateway_0vwhwno_di" bpmnElement="Gateway_0vwhwno" isMarkerVisible="true">
         <dc:Bounds x="905" y="873" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_0ybpjh1_di" bpmnElement="PrufergebnisGateway1" isMarkerVisible="true">
+      <bpmndi:BPMNShape id="Gateway_0ybpjh1_di" bpmnElement="PrufergebnisGateway1" isMarkerVisible="true" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="1015" y="873" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="953" y="840" width="69" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0blxl2s_di" bpmnElement="TweetGepostedEndEvent">
+      <bpmndi:BPMNShape id="Event_0blxl2s_di" bpmnElement="TweetGepostedEndEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="1450" y="996" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1431" y="1039" width="78" height="14" />
@@ -556,7 +611,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       <bpmndi:BPMNShape id="Gateway_0gxn63i_di" bpmnElement="Gateway_0gxn63i" isMarkerVisible="true">
         <dc:Bounds x="625" y="873" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_1kkxybs_di" bpmnElement="TweetAbgelehntEndEvent1">
+      <bpmndi:BPMNShape id="Event_1kkxybs_di" bpmnElement="TweetAbgelehntEndEvent1" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="1450" y="880" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1429" y="923" width="81" height="14" />
@@ -564,12 +619,6 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1tbv971_di" bpmnElement="BenutzerinformationenAuslesenTask">
         <dc:Bounds x="323" y="858" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_145nhwu_di" bpmnElement="TweetAnfragePrufenTask1">
-        <dc:Bounds x="783" y="1094" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_0puypjv_di" bpmnElement="TweetUberarbeitenTask1">
-        <dc:Bounds x="1144" y="713" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_0qtbo24_di" bpmnElement="TweetSendenTask">
         <dc:Bounds x="1144" y="974" width="100" height="80" />
@@ -580,7 +629,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       <bpmndi:BPMNShape id="Activity_0t327jc_di" bpmnElement="AblehnungMitteilenTask">
         <dc:Bounds x="1291" y="858" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_1ote7zy_di" bpmnElement="TweetEingereichtStartEvent">
+      <bpmndi:BPMNShape id="Event_1ote7zy_di" bpmnElement="TweetEingereichtStartEvent" bioc:stroke="#000" bioc:fill="#fff">
         <dc:Bounds x="216" y="725" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="192" y="768" width="87" height="14" />
@@ -588,6 +637,38 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1j69w7v_di" bpmnElement="TweetTextAutomatischPrufenTask">
         <dc:Bounds x="480" y="858" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0d89gxf_di" bpmnElement="TweetAnfragePrufenTask1">
+        <dc:Bounds x="783" y="1094" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1aj6e2c_di" bpmnElement="TweetUberarbeitenTask1">
+        <dc:Bounds x="1144" y="713" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_15sxizy_di" bpmnElement="Activity_1i724e9" isExpanded="true">
+        <dc:Bounds x="300" y="683" width="325" height="130" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1lmgpox_di" bpmnElement="Flow_1lmgpox">
+        <di:waypoint x="376" y="743" />
+        <di:waypoint x="420" y="743" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1eu7x7i_di" bpmnElement="Flow_1eu7x7i">
+        <di:waypoint x="520" y="743" />
+        <di:waypoint x="562" y="743" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Event_0zfvy5e_di" bpmnElement="Event_1v1q942">
+        <dc:Bounds x="340" y="725" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="333" y="768" width="51" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0bq8jtr_di" bpmnElement="Event_0bq8jtr">
+        <dc:Bounds x="562" y="725" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="548" y="768" width="65" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0q60jn4_di" bpmnElement="Activity_0q60jn4">
+        <dc:Bounds x="420" y="703" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Participant_1odtvf4_di" bpmnElement="MicrosoftActiveDirectoryParticipant" isHorizontal="true">
         <dc:Bounds x="120" y="1260" width="300" height="60" />
@@ -598,21 +679,21 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
       <bpmndi:BPMNShape id="Participant_1be91vl_di" bpmnElement="TwitterRESTAPIParticipant" isHorizontal="true">
         <dc:Bounds x="1240" y="1390" width="300" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_1bkm41u_di" bpmnElement="StatusErfolgFehlerMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_1bkm41u_di" bpmnElement="StatusErfolgFehlerMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1450" y="1390" />
         <di:waypoint x="1450" y="1330" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1464" y="1341" width="71" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0ldfs4n_di" bpmnElement="TweetBenutzerkontoMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_0ldfs4n_di" bpmnElement="TweetBenutzerkontoMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1390" y="1330" />
         <di:waypoint x="1390" y="1390" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1305" y="1357" width="71" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_13ly8q9_di" bpmnElement="TweetTextUndBenutzerkurzelMessageFlow" bioc:stroke="rgb(229, 57, 53)" bioc:fill="rgb(255, 205, 210)">
+      <bpmndi:BPMNEdge id="Flow_13ly8q9_di" bpmnElement="TweetTextUndBenutzerkurzelMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="345" y="570" />
         <di:waypoint x="345" y="663" />
         <di:waypoint x="234" y="663" />
@@ -621,7 +702,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="253" y="626" width="75" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0wqsemq_di" bpmnElement="AufgabeMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_0wqsemq_di" bpmnElement="AufgabeMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1220" y="713" />
         <di:waypoint x="1220" y="330" />
         <di:waypoint x="550" y="330" />
@@ -630,7 +711,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="1230" y="643" width="41" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1jmw7rk_di" bpmnElement="UberarbeitererTweetMessageFlow" bioc:stroke="rgb(229, 57, 53)" bioc:fill="rgb(255, 205, 210)">
+      <bpmndi:BPMNEdge id="Flow_1jmw7rk_di" bpmnElement="UberarbeitererTweetMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="715" y="530" />
         <di:waypoint x="1170" y="530" />
         <di:waypoint x="1170" y="713" />
@@ -638,7 +719,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="1090" y="636" width="72" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0g2n5n9_di" bpmnElement="MailMitAblehnungMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_0g2n5n9_di" bpmnElement="MailMitAblehnungMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1341" y="858" />
         <di:waypoint x="1341" y="80" />
         <di:waypoint x="550" y="80" />
@@ -647,7 +728,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="1354" y="636" width="53" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1qhj5q4_di" bpmnElement="MailMitBestatigungMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_1qhj5q4_di" bpmnElement="MailMitBestatigungMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1341" y="1054" />
         <di:waypoint x="1341" y="1100" />
         <di:waypoint x="1560" y="1100" />
@@ -658,14 +739,14 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="1480" y="636" width="59" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0iltxl6_di" bpmnElement="PrufergebnisKommentarMessageFlow" bioc:stroke="rgb(229, 57, 53)" bioc:fill="rgb(255, 205, 210)">
+      <bpmndi:BPMNEdge id="Flow_0iltxl6_di" bpmnElement="PrufergebnisKommentarMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="835" y="1315" />
         <di:waypoint x="835" y="1174" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="844" y="1242" width="73" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0lszl35_di" bpmnElement="AufgabeMitZusatzangabenMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_0lszl35_di" bpmnElement="AufgabeMitZusatzangabenMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="860" y="1174" />
         <di:waypoint x="860" y="1230" />
         <di:waypoint x="1210" y="1230" />
@@ -675,7 +756,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="1011" y="1242" width="76" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0xz1ooe_di" bpmnElement="AufgabeMitZusatzangabenMessageFlow1">
+      <bpmndi:BPMNEdge id="Flow_0xz1ooe_di" bpmnElement="AufgabeMitZusatzangabenMessageFlow1" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="810" y="1174" />
         <di:waypoint x="810" y="1240" />
         <di:waypoint x="609" y="1240" />
@@ -684,21 +765,21 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="612" y="1206" width="76" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_0tgww4m_di" bpmnElement="VollstandigerNameUndMailAdresseMessageFlow" bioc:stroke="rgb(229, 57, 53)" bioc:fill="rgb(255, 205, 210)">
+      <bpmndi:BPMNEdge id="Flow_0tgww4m_di" bpmnElement="VollstandigerNameUndMailAdresseMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="390" y="1260" />
         <di:waypoint x="390" y="938" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="401" y="1210" width="78" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1r2reno_di" bpmnElement="BenutzerkurzelMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_1r2reno_di" bpmnElement="BenutzerkurzelMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="360" y="938" />
         <di:waypoint x="360" y="1260" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="273" y="1213" width="74" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_1bjvpib_di" bpmnElement="StatusErfolgFehlerMessageFlow1" bioc:stroke="rgb(229, 57, 53)" bioc:fill="rgb(255, 205, 210)">
+      <bpmndi:BPMNEdge id="Flow_1bjvpib_di" bpmnElement="StatusErfolgFehlerMessageFlow1" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1390" y="1270" />
         <di:waypoint x="1390" y="1162" />
         <di:waypoint x="1220" y="1162" />
@@ -707,7 +788,7 @@ result = (tweetContent.toLowerCase().indexOf("gpi") == -1 ? "manualCheckRequired
           <dc:Bounds x="1284" y="1126" width="71" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_13eskmi_di" bpmnElement="TweetMessageFlow">
+      <bpmndi:BPMNEdge id="Flow_13eskmi_di" bpmnElement="TweetMessageFlow" bioc:stroke="#000" bioc:fill="#fff">
         <di:waypoint x="1194" y="1054" />
         <di:waypoint x="1194" y="1220" />
         <di:waypoint x="1320" y="1220" />
