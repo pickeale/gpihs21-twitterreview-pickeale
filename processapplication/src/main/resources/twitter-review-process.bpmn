@@ -153,11 +153,11 @@
         <bpmn:flowNodeRef>TweetGepostedEndEvent</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Gateway_0gxn63i</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>TweetAbgelehntEndEvent1</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>BenutzerinformationenAuslesenTask</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>TweetSendenTask</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>BestatigungMitteilenTask</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>AblehnungMitteilenTask</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>TweetTextAutomatischPrufenTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BenutzerinformationenAuslesenTask</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="KommabtLane" name="Komm.abt.">
         <bpmn:flowNodeRef>TweetAnfragePrufenTask1</bpmn:flowNodeRef>
@@ -212,10 +212,6 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_14fz7kr" sourceRef="TweetAnfragePrufenTask1" targetRef="Gateway_0vwhwno" />
     <bpmn:sequenceFlow id="Flow_096xcdp" sourceRef="TweetUberarbeitenTask1" targetRef="Gateway_0gxn63i" />
-    <bpmn:task id="BenutzerinformationenAuslesenTask" name="Benutzerinformationen auslesen">
-      <bpmn:incoming>Flow_09kfwsd</bpmn:incoming>
-      <bpmn:outgoing>Flow_0pe345c</bpmn:outgoing>
-    </bpmn:task>
     <bpmn:task id="TweetSendenTask" name="Tweet senden">
       <bpmn:incoming>GenehmigtSequenceFlow</bpmn:incoming>
       <bpmn:outgoing>Flow_009rtmd</bpmn:outgoing>
@@ -256,6 +252,11 @@ anfrageStellenderBenutzer + "-" + tweetContentShort );</camunda:script>
             <camunda:value id="revisable" name="Zu überarbeiten" />
           </camunda:formField>
           <camunda:formField id="checkResultComment" label="Begründung" type="string" />
+          <camunda:formField id="userFullDescription" label="Antragsteller" type="string">
+            <camunda:validation>
+              <camunda:constraint name="readonly" />
+            </camunda:validation>
+          </camunda:formField>
         </camunda:formData>
         <camunda:inputOutput>
           <camunda:inputParameter name="checkResultLocal">accepted</camunda:inputParameter>
@@ -310,6 +311,10 @@ anfrageStellenderBenutzer + "-" + tweetContentShort );</camunda:script>
       <bpmn:incoming>Flow_0pe345c</bpmn:incoming>
       <bpmn:outgoing>Flow_0z4adnm</bpmn:outgoing>
     </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="BenutzerinformationenAuslesenTask" name="Benutzerinformationen auslesen" camunda:delegateExpression="${getUserInformationAdapter}">
+      <bpmn:incoming>Flow_09kfwsd</bpmn:incoming>
+      <bpmn:outgoing>Flow_0pe345c</bpmn:outgoing>
+    </bpmn:serviceTask>
   </bpmn:process>
   <bpmn:error id="Error_0cztbkf" name="DuplicateError" errorCode="DuplicateTweet" />
   <bpmn:message id="Message_0o3837t" name="MessageCancelTwitterReview" />
@@ -619,9 +624,6 @@ anfrageStellenderBenutzer + "-" + tweetContentShort );</camunda:script>
           <dc:Bounds x="1429" y="923" width="81" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1tbv971_di" bpmnElement="BenutzerinformationenAuslesenTask">
-        <dc:Bounds x="323" y="858" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_0qtbo24_di" bpmnElement="TweetSendenTask">
         <dc:Bounds x="1144" y="974" width="100" height="80" />
       </bpmndi:BPMNShape>
@@ -643,8 +645,8 @@ anfrageStellenderBenutzer + "-" + tweetContentShort );</camunda:script>
       <bpmndi:BPMNShape id="Activity_1aj6e2c_di" bpmnElement="TweetUberarbeitenTask1">
         <dc:Bounds x="1144" y="713" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_0oag19h_di" bpmnElement="TweetTextAutomatischPrufenTask">
-        <dc:Bounds x="480" y="858" width="100" height="80" />
+      <bpmndi:BPMNShape id="Activity_0d9t1mw_di" bpmnElement="BenutzerinformationenAuslesenTask">
+        <dc:Bounds x="323" y="858" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_15sxizy_di" bpmnElement="Activity_1i724e9" isExpanded="true">
         <dc:Bounds x="300" y="683" width="325" height="130" />
@@ -671,6 +673,9 @@ anfrageStellenderBenutzer + "-" + tweetContentShort );</camunda:script>
         <bpmndi:BPMNLabel>
           <dc:Bounds x="548" y="768" width="65" height="27" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0oag19h_di" bpmnElement="TweetTextAutomatischPrufenTask">
+        <dc:Bounds x="480" y="858" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Participant_1odtvf4_di" bpmnElement="MicrosoftActiveDirectoryParticipant" isHorizontal="true">
         <dc:Bounds x="120" y="1260" width="300" height="60" />
