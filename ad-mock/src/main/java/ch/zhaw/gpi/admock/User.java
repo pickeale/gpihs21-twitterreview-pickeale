@@ -1,8 +1,10 @@
-package ch.zhaw.gpi.twitterreviewprocessapplication.ldap;
+package ch.zhaw.gpi.admock;
 
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.ManyToOne;
+
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 @Entity
 public class User {
@@ -11,9 +13,10 @@ public class User {
     private String firstName;
     private String officialName;
     private String eMail;
-
     @ManyToOne
+    @JsonUnwrapped
     private OrgUnit homeOrganization;
+
 
     public String getUserName() {
         return userName;
@@ -39,10 +42,13 @@ public class User {
     public void seteMail(String eMail) {
         this.eMail = eMail;
     }
+
     public OrgUnit getHomeOrganization() {
         return homeOrganization;
     }
     public void setHomeOrganization(OrgUnit homeOrganization) {
         this.homeOrganization = homeOrganization;
     }
+
+    
 }
